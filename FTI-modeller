@@ -1,0 +1,475 @@
+#Laver nye modeller. Y er fortsat den årlige realvækst i privatforbruget. 
+#Nye modeller er 7mfti, som bruger de syv mikroøkonomiske spg. 
+# 4mfti som bruger de fire mikroøkonomiske spg. som fungerer i EU-regi
+# fti_optimal som artiklen "the quest for the best cci" referer til.
+
+#henter k3
+DI_K3 <- DIFTI_kvt[
+  grepl("K3$", DIFTI_kvt$Tidsinterval),
+]
+
+#henter k4
+DI_K4 <- DIFTI_kvt[
+  grepl("K4$", DIFTI_kvt$Tidsinterval),
+]
+
+#laver år
+DI_K3$Aar <- substr(DI_K3$Tidsinterval, 1, 4)
+DI_K4$Aar <- substr(DI_K4$Tidsinterval, 1, 4)
+
+#samler k3 og k4 for samme år
+DI_sammenligning <- merge(
+  DI_K3[, c("Aar", "DI_FTI")],
+  DI_K4[, c("Aar", "DI_FTI")],
+  by = "Aar",
+  suffixes = c("_K3", "_K4")
+)
+
+#er k4 højere end k3?
+DI_sammenligning$K4_hoejere <- (
+  DI_sammenligning$DI_FTI_K4 >
+    DI_sammenligning$DI_FTI_K3
+)
+
+#antal år hvor k4 er højere
+sum(DI_sammenligning$K4_hoejere)
+
+#antal år i alt
+nrow(DI_sammenligning)
+
+#andel i procent
+mean(DI_sammenligning$K4_hoejere) * 100
+
+#antal år hvor k4 er højere end k3
+sum(DI_sammenligning$DI_FTI_K4 > DI_sammenligning$DI_FTI_K3)
+
+#antal år hvor k4 er lig med k3
+sum(DI_sammenligning$DI_FTI_K4 == DI_sammenligning$DI_FTI_K3)
+
+#antal år hvor k4 er lavere end k3
+sum(DI_sammenligning$DI_FTI_K4 < DI_sammenligning$DI_FTI_K3)
+
+#procent højere
+mean(DI_sammenligning$DI_FTI_K4 > DI_sammenligning$DI_FTI_K3) * 100
+#procent det samme
+mean(DI_sammenligning$DI_FTI_K4 == DI_sammenligning$DI_FTI_K3) * 100
+#procent lavere
+mean(DI_sammenligning$DI_FTI_K4 < DI_sammenligning$DI_FTI_K3) * 100
+
+
+#gns. for di-fti i k3
+mean(DI_sammenligning$DI_FTI_K3, na.rm = TRUE)
+
+#gns. for di-fti i k4
+mean(DI_sammenligning$DI_FTI_K4, na.rm = TRUE)
+
+
+#--------------------------------------------------
+#7MFTI
+#--------------------------------------------------
+
+#finder navnene på indikatorerne i FORV1
+navne_7m <- meta$values$INDIKATOR$text
+soegenavne_7m <- tolower(navne_7m)
+soegenavne_7m <- gsub(
+  "[[:space:]\u00a0]+",
+  " ",
+  soegenavne_7m,
+  perl = TRUE
+)
+
+#de 7 mikrospørgsmål
+spoergsmaal_7m <- c(
+  "Familiens økonomiske situation i dag, sammenlignet med for et år siden",
+  "Familiens økonomiske  situation om et år, sammenlignet med i dag",
+  "Anskaffelse af større forbrugsgoder, fordelagtigt for øjeblikket",
+  "Anskaffelse af større forbrugsgoder, inden for de næste 12 mdr.",
+  "Anser det som fornuftigt at spare op i den nuværende økonomiske situation",
+  "Regner med at kunne spare op i de kommende 12 måneder",
+  "Familiens økonomiske situation lige nu: kan spare/penge slår til/ bruger mere end man tjener"
+)
+
+#tjekker at alle 7 findes i FORV1
+stopifnot(
+  all(spoergsmaal_7m %in% navne_7m)
+)
+
+spoergsmaal_7m
+
+#viser hvilke 7 spørgsmål der er fundet
+spoergsmaal_7m
+
+navne_7m[
+  
+  
+  grepl(
+    "Familiens|Anskaffelse|spare|Spare",
+    navne_7m
+  )
+]
+
+#henter de 7 mikrospørgsmål
+mikro_7m_raw <- dst_get_data(
+  table = "FORV1",
+  query = list(
+    INDIKATOR = spoergsmaal_7m,
+    Tid = "*"
+  ),
+  meta_data = meta,
+  lang = "da",
+  parse_dst_tid = FALSE
+)
+
+#beholder perioden fra 1999
+mikro_7m_raw <- mikro_7m_raw[
+  mikro_7m_raw$TID >= "1999M01",
+]
+
+#sikrer de rigtige indikatornavne
+for (i in 1:7) {
+  valgt <- endsWith(
+    as.character(mikro_7m_raw$INDIKATOR),
+    spoergsmaal_7m[i]
+  )
+  
+  mikro_7m_raw$INDIKATOR[valgt] <-
+    spoergsmaal_7m[i]
+}
+
+#laver data bredt
+mikro_7m <- pivot_wider(
+  mikro_7m_raw,
+  id_cols = TID,
+  names_from = INDIKATOR,
+  values_from = value
+)
+
+mikro_7m <- as.data.frame(mikro_7m)
+
+#finder kvartalet for hver måned
+maaned_7m <- as.integer(
+  substr(mikro_7m$TID, 6, 7)
+)
+
+mikro_7m$Tidsinterval <- paste0(
+  substr(mikro_7m$TID, 1, 4),
+  "K",
+  (maaned_7m - 1) %/% 3 + 1
+)
+
+#finder alle kvartaler
+kvartaler_7m <- sort(
+  unique(mikro_7m$Tidsinterval)
+)
+
+#opretter dataframe til kvartalsdata
+FTI_7m <- data.frame(
+  Tidsinterval = kvartaler_7m,
+  FTI_7m = NA_real_
+)
+
+#beregner gennemsnittet af de 7 mikrospørgsmål
+#for hver måned og derefter kvartalet
+mikro_7m$maaneds_FTI_7m <- rowMeans(
+  mikro_7m[, spoergsmaal_7m],
+  na.rm = FALSE
+)
+
+for (i in seq_along(kvartaler_7m)) {
+  
+  vaerdier <- mikro_7m$maaneds_FTI_7m[
+    mikro_7m$Tidsinterval ==
+      kvartaler_7m[i]
+  ]
+  
+  if (
+    length(vaerdier) == 3 &&
+    all(is.finite(vaerdier))
+  ) {
+    FTI_7m$FTI_7m[i] <- mean(vaerdier)
+  }
+}
+
+#samler 7mfti og privatforbruget
+forbrug_7mfti <- merge(
+  FTI_7m,
+  privatforbrug,
+  by = "Tidsinterval",
+  sort = TRUE
+)
+
+#fjerner manglende værdier
+forbrug_7mfti <- forbrug_7mfti[
+  is.finite(forbrug_7mfti$Realvaekst) &
+    is.finite(forbrug_7mfti$FTI_7m),
+]
+
+#laver den simple lineære regression
+model_7mfti <- lm(
+  Realvaekst ~ FTI_7m,
+  data = forbrug_7mfti
+)
+
+summary(model_7mfti)
+
+#DENNE MODEL HAR KUN 101 OBSERVATIONER, DE ANDRE HAR 106. det er pga.spg 10 "Anser det som fornuftigt at spare op i den nuværende økonomiske situation". stoppede i 2025m5
+
+
+#viser manglende værdier for hvert mikrospørgsmål
+colSums(
+  is.na(
+    mikro_7m[, spoergsmaal_7m]
+  )
+)
+
+#viser måneder hvor mindst ét af de 7 spørgsmål mangler
+mikro_7m[
+  !complete.cases(
+    mikro_7m[, spoergsmaal_7m]
+  ),
+  c("TID", spoergsmaal_7m)
+]
+
+#--------------------------------------------------
+#4MFTI
+#--------------------------------------------------
+
+#de 4 mikrospørgsmål fra artiklen
+spoergsmaal_4m <- c(
+  "Familiens økonomiske situation i dag, sammenlignet med for et år siden",
+  "Familiens økonomiske  situation om et år, sammenlignet med i dag",
+  "Anskaffelse af større forbrugsgoder, fordelagtigt for øjeblikket",
+  "Anskaffelse af større forbrugsgoder, inden for de næste 12 mdr."
+)
+
+#tjekker at alle 4 findes i FORV1
+stopifnot(
+  all(spoergsmaal_4m %in% navne_7m)
+)
+
+#henter de 4 mikrospørgsmål
+mikro_4m_raw <- dst_get_data(
+  table = "FORV1",
+  query = list(
+    INDIKATOR = spoergsmaal_4m,
+    Tid = "*"
+  ),
+  meta_data = meta,
+  lang = "da",
+  parse_dst_tid = FALSE
+)
+
+#beholder perioden fra 1999
+mikro_4m_raw <- mikro_4m_raw[
+  mikro_4m_raw$TID >= "1999M01",
+]
+
+#sikrer de rigtige indikatornavne
+for (i in 1:4) {
+  valgt <- endsWith(
+    as.character(mikro_4m_raw$INDIKATOR),
+    spoergsmaal_4m[i]
+  )
+  
+  mikro_4m_raw$INDIKATOR[valgt] <-
+    spoergsmaal_4m[i]
+}
+
+#laver data bredt
+mikro_4m <- pivot_wider(
+  mikro_4m_raw,
+  id_cols = TID,
+  names_from = INDIKATOR,
+  values_from = value
+)
+
+mikro_4m <- as.data.frame(mikro_4m)
+
+#finder kvartalet for hver måned
+maaned_4m <- as.integer(
+  substr(mikro_4m$TID, 6, 7)
+)
+
+mikro_4m$Tidsinterval <- paste0(
+  substr(mikro_4m$TID, 1, 4),
+  "K",
+  (maaned_4m - 1) %/% 3 + 1
+)
+
+#finder alle kvartaler
+kvartaler_4m <- sort(
+  unique(mikro_4m$Tidsinterval)
+)
+
+#opretter dataframe til kvartalsdata
+FTI_4m <- data.frame(
+  Tidsinterval = kvartaler_4m,
+  FTI_4m = NA_real_
+)
+
+#beregner gennemsnittet af de 4 mikrospørgsmål
+#for hver måned
+mikro_4m$maaneds_FTI_4m <- rowMeans(
+  mikro_4m[, spoergsmaal_4m],
+  na.rm = FALSE
+)
+
+#beregner kvartalsgennemsnittet
+for (i in seq_along(kvartaler_4m)) {
+  
+  vaerdier <- mikro_4m$maaneds_FTI_4m[
+    mikro_4m$Tidsinterval ==
+      kvartaler_4m[i]
+  ]
+  
+  if (
+    length(vaerdier) == 3 &&
+    all(is.finite(vaerdier))
+  ) {
+    FTI_4m$FTI_4m[i] <- mean(vaerdier)
+  }
+}
+
+#samler 4mfti og privatforbruget
+forbrug_4mfti <- merge(
+  FTI_4m,
+  privatforbrug,
+  by = "Tidsinterval",
+  sort = TRUE
+)
+
+#fjerner manglende værdier
+forbrug_4mfti <- forbrug_4mfti[
+  is.finite(forbrug_4mfti$Realvaekst) &
+    is.finite(forbrug_4mfti$FTI_4m),
+]
+
+#laver den simple lineære regression
+model_4mfti <- lm(
+  Realvaekst ~ FTI_4m,
+  data = forbrug_4mfti
+)
+
+summary(model_4mfti)
+
+
+#--------------------------------------------------
+#optimal fti for danmark
+#--------------------------------------------------
+
+#de 4 spørgsmål fra artiklens optimale danske indikator
+spoergsmaal_optimal <- c(
+  "Familiens økonomiske situation i dag, sammenlignet med for et år siden",
+  "Danmarks økonomiske situation i dag, sammenlignet med for et år siden",
+  "Danmarks økonomiske situation om et år, sammenlignet med i dag",
+  "Anskaffelse af større forbrugsgoder, inden for de næste 12 mdr."
+)
+
+#tjekker at alle 4 findes
+stopifnot(
+  all(spoergsmaal_optimal %in% navne_7m)
+)
+
+#henter de 4 spørgsmål
+optimal_raw <- dst_get_data(
+  table = "FORV1",
+  query = list(
+    INDIKATOR = spoergsmaal_optimal,
+    Tid = "*"
+  ),
+  meta_data = meta,
+  lang = "da",
+  parse_dst_tid = FALSE
+)
+
+#beholder perioden fra 1999
+optimal_raw <- optimal_raw[
+  optimal_raw$TID >= "1999M01",
+]
+
+#sikrer de rigtige indikatornavne
+for (i in 1:4) {
+  valgt <- endsWith(
+    as.character(optimal_raw$INDIKATOR),
+    spoergsmaal_optimal[i]
+  )
+  
+  optimal_raw$INDIKATOR[valgt] <-
+    spoergsmaal_optimal[i]
+}
+
+#laver data bredt
+optimal <- pivot_wider(
+  optimal_raw,
+  id_cols = TID,
+  names_from = INDIKATOR,
+  values_from = value
+)
+
+optimal <- as.data.frame(optimal)
+
+#finder kvartalet for hver måned
+maaned_optimal <- as.integer(
+  substr(optimal$TID, 6, 7)
+)
+
+optimal$Tidsinterval <- paste0(
+  substr(optimal$TID, 1, 4),
+  "K",
+  (maaned_optimal - 1) %/% 3 + 1
+)
+
+#finder alle kvartaler
+kvartaler_optimal <- sort(
+  unique(optimal$Tidsinterval)
+)
+
+#opretter dataframe til kvartalsdata
+FTI_optimal <- data.frame(
+  Tidsinterval = kvartaler_optimal,
+  FTI_optimal = NA_real_
+)
+
+#beregner gennemsnittet af de 4 spørgsmål for hver måned
+optimal$maaneds_FTI_optimal <- rowMeans(
+  optimal[, spoergsmaal_optimal],
+  na.rm = FALSE
+)
+
+#beregner kvartalsgennemsnittet
+for (i in seq_along(kvartaler_optimal)) {
+  
+  vaerdier <- optimal$maaneds_FTI_optimal[
+    optimal$Tidsinterval ==
+      kvartaler_optimal[i]
+  ]
+  
+  if (
+    length(vaerdier) == 3 &&
+    all(is.finite(vaerdier))
+  ) {
+    FTI_optimal$FTI_optimal[i] <- mean(vaerdier)
+  }
+}
+
+#samler optimal fti og privatforbruget
+forbrug_optimal <- merge(
+  FTI_optimal,
+  privatforbrug,
+  by = "Tidsinterval",
+  sort = TRUE
+)
+
+#fjerner manglende værdier
+forbrug_optimal <- forbrug_optimal[
+  is.finite(forbrug_optimal$Realvaekst) &
+    is.finite(forbrug_optimal$FTI_optimal),
+]
+
+#laver den simple lineære regression
+model_optimal <- lm(
+  Realvaekst ~ FTI_optimal,
+  data = forbrug_optimal
+)
+
+summary(model_optimal)
