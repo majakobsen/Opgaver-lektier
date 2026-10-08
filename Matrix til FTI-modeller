@@ -1,0 +1,76 @@
+library(dkstat)
+library(tidyr)
+
+forv1_meta <- dst_meta(table = "FORV1", lang = "da")
+
+# Vælg alle spørgsmål undtagen de to
+spoergsmaal <- forv1_meta$values$INDIKATOR$text
+
+spoergsmaal <- spoergsmaal[
+  !grepl("Forbrugertillidsindikatoren|Anser det som fornuftigt", spoergsmaal)
+]
+
+forv1 <- dst_get_data(
+  table = "FORV1",
+  query = list(
+    INDIKATOR = spoergsmaal,
+    Tid = "*"
+  ),
+  meta_data = forv1_meta,
+  lang = "da",
+  parse_dst_tid = FALSE
+)
+
+# Behold januar 2000 og frem
+forv1 <- forv1[forv1$TID >= "2000M01", ]
+
+# Lav spørgsmålene til kolonner
+forv1 <- pivot_wider(
+  forv1,
+  id_cols = TID,
+  names_from = INDIKATOR,
+  values_from = value
+)
+
+forv1 <- as.data.frame(forv1)
+forv1 <- forv1[order(forv1$TID), ]
+rownames(forv1) <- NULL
+
+View(forv1)
+
+# Lav måneder til kvartaler
+maaned <- as.numeric(substr(forv1$TID, 6, 7))
+
+kvartal <- paste0(
+  substr(forv1$TID, 1, 4),
+  "K",
+  ceiling(maaned / 3)
+)
+
+# Beregn gennemsnit pr. kvartal
+forv1_kvt <- aggregate(
+  forv1[, -1],
+  by = list(TID = kvartal),
+  FUN = mean
+)
+
+View(forv1_kvt)
+
+x <- combn(forv1_kvt[1,2:ncol(forv1_kvt)],2)
+forv1_kvt[1,2:ncol(forv1_kvt)]
+
+x1 <- combn(forv1_kvt[2,2:ncol(forv1_kvt)],2)
+
+x3 <- matrix(as.numeric(combn(forv1_kvt[1,2:ncol(forv1_kvt)],3)),nrow=3) 
+
+x2 <- matrix(colMeans(matrix(as.numeric(combn(forv1_kvt[3,2:ncol(forv1_kvt)],3)),nrow=3)),nrow=1)
+
+z <- matrix(0,ncol=165,nrow=nrow(forv1_kvt))
+
+i=6
+
+for(i in 1:nrow(forv1_kvt)) {
+  z[i,] <- matrix(colMeans(matrix(as.numeric(combn(forv1_kvt[i,2:ncol(forv1_kvt)],3)),nrow=3)),nrow=1)
+}
+
+z <- round(z,2)
