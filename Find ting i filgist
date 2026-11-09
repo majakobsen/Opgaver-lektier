@@ -33,6 +33,10 @@ r=unlist(str_match_all(testtext, "\\d{3,}"))
 #Findes der et telefonnummer? ##### FIX DEN HER OPGAVE
 tlf=unlist(str_extract_all(testtext))
 
+#??? Fundet ét tlfnr
+tlf=unlist(str_extract_all(testtext, "\\d{8}"))
+tlf
+
 # saml all uppercasesekvenser som er længere end 3 karakterer
 # 1) brug en quantifyer
 myv <- unlist(str_match_all(testtext))
@@ -62,6 +66,11 @@ str_match(myv, "^[AB].+")
 kpi=unlist(str_extract_all(testtext,""))
 kpi2=sort(str_to_lower(kpi))
 sort(table(kpi2), decreasing = T)
+
+#fundet her??? - Topdanm
+kpi=unlist(str_extract_all(testtext,"\\b\\p{L}{4,}\\b"))
+kpi2=sort(str_to_lower(kpi))
+sort(table(kpi2), decreasing = TRUE)
 
 
 # lav det til en funktion
