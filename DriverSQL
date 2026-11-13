@@ -1,0 +1,68 @@
+#################DRIVER#############
+
+library(DBI)
+library(RMariaDB)
+library (dplyr)
+
+#opretter forbindelse til mysql-serveren
+con <- dbConnect(
+  RMariaDB::MariaDB(),
+  host = "127.0.0.1",
+  port = 3306,
+  username = "root",
+  password = "skrivdinkodeher"
+)
+
+##############DRIVER SLUT################
+
+#viser alle databaser på serveren
+dbGetQuery(con, "SHOW DATABASES")
+
+#viser alle tabeller i world
+dbGetQuery(con, "SHOW TABLES FROM world")
+
+#henter city-tabellen fra world til r
+byer <- dbGetQuery(con, "SELECT * FROM world.City")
+
+#viser data
+View(byer)
+########################################NORTHWIND############################
+
+#viser alle tabeller i northwind
+dbGetQuery(con, "SHOW TABLES FROM dalnorthwind")
+
+
+#henter alle kunder fra northwind
+kunder <- dbGetQuery(con, "
+  SELECT * FROM dalnorthwind.customers
+")
+View(kunder)
+
+
+#henter alle produkter fra northwind
+produkter <- dbGetQuery(con, "
+  SELECT * FROM dalnorthwind.products
+")
+View(produkter)
+
+
+#tæller antallet af kunder
+dbGetQuery(con, "
+  SELECT COUNT(*) FROM dalnorthwind.customers
+")
+
+
+#viser de første 10 produkter
+dbGetQuery(con, "
+  SELECT * FROM dalnorthwind.products
+  LIMIT 10
+")
+
+
+#henter alle ordrer til en dataframe
+ordrer <- dbGetQuery(con, "
+  SELECT * FROM dalnorthwind.orders
+")
+View(ordrer)
+
+
